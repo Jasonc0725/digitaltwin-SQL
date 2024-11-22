@@ -1,0 +1,72 @@
+WITH ExpandedData AS (
+  SELECT
+    publication_number,
+    priority_date,
+    publication_date,
+    filing_date,
+    grant_date,
+    title.text AS title,
+    abstract.text AS abstract,
+    ARRAY(SELECT assignee.name || ' (' || assignee.country_code || ')' 
+          FROM UNNEST(p.assignee_harmonized) AS assignee) AS assignee_info,
+    ARRAY_TO_STRING(ARRAY(SELECT inventor.name FROM UNNEST(inventor_harmonized) AS inventor), ', ') AS inventors,
+    claims.text AS claims,
+    description.text AS description,
+    cpc.code AS cpc_code
+  FROM
+    `patents-public-data.patents.publications` AS p
+  CROSS JOIN UNNEST(p.title_localized) AS title
+  CROSS JOIN UNNEST(p.abstract_localized) AS abstract
+  CROSS JOIN UNNEST(p.claims_localized) AS claims
+  CROSS JOIN UNNEST(p.description_localized) AS description
+  CROSS JOIN UNNEST(p.cpc) AS cpc
+  WHERE
+    p.country_code = 'US'
+    AND (
+      LOWER(title.text) LIKE '%cyber twin%' 
+      OR LOWER(title.text) LIKE '%digital twin%' 
+      OR LOWER(title.text) LIKE '%digital replica%' 
+      OR LOWER(title.text) LIKE '%virtual twin%' 
+      OR LOWER(title.text) LIKE '%cyber-physical%'
+      OR LOWER(abstract.text) LIKE '%cyber twin%' 
+      OR LOWER(abstract.text) LIKE '%digital twin%' 
+      OR LOWER(abstract.text) LIKE '%digital replica%' 
+      OR LOWER(abstract.text) LIKE '%virtual twin%' 
+      OR LOWER(abstract.text) LIKE '%cyber-physical%'
+      OR LOWER(claims.text) LIKE '%cyber twin%' 
+      OR LOWER(claims.text) LIKE '%digital twin%' 
+      OR LOWER(claims.text) LIKE '%digital replica%' 
+      OR LOWER(claims.text) LIKE '%virtual twin%' 
+      OR LOWER(claims.text) LIKE '%cyber-physical%'
+    )
+    AND priority_date > 20000101
+    AND priority_date < 20121231
+)
+
+SELECT
+  publication_number,
+  priority_date,
+  publication_date,
+  filing_date,
+  grant_date,
+  title,
+  abstract,
+  ARRAY_TO_STRING(assignee_info, '; ') AS assignees,  -- 將名稱與國家拼接並分號分隔
+  inventors,
+  claims,
+  description,
+  STRING_AGG(DISTINCT cpc_code, '; ') AS cpc_codes
+FROM
+  ExpandedData
+GROUP BY
+  publication_number,
+  priority_date,
+  publication_date,
+  filing_date,
+  grant_date,
+  title,
+  abstract,
+  assignee_info,  -- 分組需要包含這一欄
+  inventors,
+  claims,
+  description
